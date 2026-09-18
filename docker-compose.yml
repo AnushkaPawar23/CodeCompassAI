@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: codecompass-postgres
+    environment:
+      POSTGRES_DB: codecompass
+      POSTGRES_USER: codecompass
+      POSTGRES_PASSWORD: codecompass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

@@ -1,0 +1,107 @@
+spring:
+  application:
+    name: codecompass-ai
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # PostgreSQL datasource (pgvector/pgvector:pg16 container)
+  # ──────────────────────────────────────────────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://localhost:5432/codecompass
+    username: codecompass
+    password: codecompass
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update          # auto-creates/updates tables from entities
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Jackson
+  # ──────────────────────────────────────────────────────────────────────────
+  jackson:
+    default-property-inclusion: non_null
+
+# ────────────────────────────────────────────────────────────────────────────
+# Server
+# ────────────────────────────────────────────────────────────────────────────
+server:
+  port: 8080
+
+# ────────────────────────────────────────────────────────────────────────────
+# Actuator – expose health and info endpoints
+# ────────────────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+# ────────────────────────────────────────────────────────────────────────────
+# LangChain4j – OpenAI-compatible client → Groq API
+#
+# The Groq API is OpenAI-compatible; we point the base-url at Groq's endpoint.
+# Set GROQ_API_KEY as an environment variable before running.
+#
+# Model history:
+#   llama-3.3-70b-versatile — original choice (Stage 1); removed from Groq
+#                             free tier as of 2026-09 (404 model_not_found).
+#   groq/compound           — accidentally set during Stage 4 (Compound Beta
+#                             routing agent, NOT a direct LLM; caused 413 at
+#                             topK>=3 due to smaller effective context window).
+#   qwen/qwen3.8-27b        — current model (Stage 4 fix, 2026-09-18).
+#                             131K context, real LLM, Groq free tier.
+#
+# NOTE: Do NOT silently change model-name without explicit user approval.
+# ────────────────────────────────────────────────────────────────────────────
+langchain4j:
+  open-ai:
+    chat-model:
+      api-key: ${GROQ_API_KEY:GROQ_API_KEY_NOT_SET}
+      base-url: https://api.groq.com/openai/v1
+      model-name: qwen/qwen3.8-27b
+      temperature: 0.3
+      max-tokens: 2048
+      log-requests: false
+      log-responses: false
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # LangChain4j – Ollama (local embedding model)
+  #
+  # Install Ollama before Stage 3:  https://ollama.ai
+  # Then pull the model:            ollama pull nomic-embed-text
+  # ──────────────────────────────────────────────────────────────────────────
+  ollama:
+    embedding-model:
+      base-url: http://localhost:11434
+      model-name: nomic-embed-text
+      log-requests: false
+      log-responses: false
+
+# ────────────────────────────────────────────────────────────────────────────
+# CodeCompass custom properties
+# ────────────────────────────────────────────────────────────────────────────
+codecompass:
+  # Directory where cloned repos are stored temporarily during ingestion
+  clone-base-dir: ${java.io.tmpdir}/codecompass-repos
+
+  # pgvector embedding store settings
+  pgvector:
+    dimension: 768          # nomic-embed-text produces 768-dim vectors
+    index-type: IVFFLAT
+    table-name: code_embeddings
+
+  # RAG retrieval
+  rag:
+    max-results: 10         # hard ceiling on chunks retrieved per query
+    min-score: 0.6          # minimum cosine similarity threshold (reserved for Stage 5+)
+    default-top-k: 5        # default number of chunks retrieved per /api/qa call
+    max-chunk-chars: 2000   # per-chunk content cap before prompting (~500 tokens @ 4 chars/token)
+                            # prevents 413 "request too large" errors when topK ≥ 3

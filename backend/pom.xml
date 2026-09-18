@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ====================================================================
+         Spring Boot parent – manages common dependency versions and plugins
+         ==================================================================== -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.16</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.codecompass</groupId>
+    <artifactId>codecompass</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>jar</packaging>
+    <name>CodeCompass AI</name>
+    <description>Intelligent codebase understanding and change-impact analysis assistant for developer onboarding</description>
+
+    <!-- ====================================================================
+         Global version properties
+         ==================================================================== -->
+    <properties>
+        <java.version>21</java.version>
+        <langchain4j.version>1.18.1</langchain4j.version>
+        <!-- javaparser-symbol-solver-core pulls in javaparser-core transitively -->
+        <javaparser.version>3.28.2</javaparser.version>
+        <jgit.version>7.7.1.202607240634-r</jgit.version>
+    </properties>
+
+    <!-- ====================================================================
+         LangChain4j BOM – aligns all dev.langchain4j artifact versions
+         ==================================================================== -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-bom</artifactId>
+                <version>${langchain4j.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+
+        <!-- ================================================================
+             Spring Boot – Web / Data / Actuator
+             ================================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!--
+            Spring Data JPA for entity management (CodeChunk, CallGraphEdge, etc.)
+            Spring Data JDBC is available as an alternative if we want lighter-weight
+            access later; JPA gives us Hibernate + schema auto-generation for free now.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- ================================================================
+             Database – PostgreSQL + pgvector
+             ================================================================ -->
+        <!--
+            PostgreSQL JDBC driver.
+            Scope is 'compile' (not 'runtime') because EmbeddingService references
+            org.postgresql.util.PGobject directly to bind vector(768) values via
+            JdbcTemplate.  The driver is still included in the fat JAR as before.
+        -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <!-- compile scope required: EmbeddingService uses PGobject at compile time -->
+        </dependency>
+
+        <!-- ================================================================
+             LangChain4j – Core library
+             ================================================================ -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+        </dependency>
+
+        <!--
+            LangChain4j Spring Boot 3 starter – auto-configures core LangChain4j beans
+        -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!--
+            LangChain4j – Ollama integration
+            Provides OllamaEmbeddingModel for nomic-embed-text (local, free)
+        -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-ollama-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!--
+            LangChain4j – OpenAI-compatible client
+            Used for Groq API (Groq exposes an OpenAI-compatible REST endpoint)
+            Model: llama-3.3-70b-versatile (free tier)
+        -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!--
+            LangChain4j – pgvector embedding store
+            Stores and queries code-chunk embeddings in PostgreSQL via pgvector
+        -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-pgvector</artifactId>
+        </dependency>
+
+        <!-- ================================================================
+             JavaParser – AST parsing, symbol resolution, call-graph building
+             Symbol-solver-core transitively includes javaparser-core
+             ================================================================ -->
+        <dependency>
+            <groupId>com.github.javaparser</groupId>
+            <artifactId>javaparser-symbol-solver-core</artifactId>
+            <version>${javaparser.version}</version>
+        </dependency>
+
+        <!-- ================================================================
+             JGit – Git repository cloning and tree walking
+             ================================================================ -->
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+            <version>${jgit.version}</version>
+        </dependency>
+
+        <!-- ================================================================
+             Lombok – Reduces boilerplate (@Data, @Builder, @Slf4j, etc.)
+             ================================================================ -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ================================================================
+             Test
+             ================================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <!-- ====================================================================
+         Build
+         ==================================================================== -->
+    <build>
+        <plugins>
+
+            <!--
+                maven-compiler-plugin: explicit annotationProcessorPaths is required
+                so that Lombok runs as a javac annotation processor.  Without this
+                block the Spring Boot parent's default compiler plugin configuration
+                does NOT discover Lombok and @Slf4j / @Builder / @Getter / @Setter /
+                @RequiredArgsConstructor all silently produce "cannot find symbol" errors.
+
+                ${lombok.version} is provided by spring-boot-dependencies (via the
+                spring-boot-starter-parent) so no explicit version property is needed here.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- Exclude Lombok processor from the final fat JAR -->
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>
