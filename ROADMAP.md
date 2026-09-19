@@ -116,15 +116,25 @@ For the current status of each stage see PROJECT.md.
 
 ---
 
-## Stage 6 — Change-Impact Analysis
+## Stage 6 — Change-Impact Analysis (COMPLETE)
 
-**Goal:** Given a changed method signature, return all transitively affected callers.
+**Goal:** Given a changed method signature, return all transitively affected callers with an LLM-generated explanation of what could break.
 
-### Planned classes
+**Verification (2026-09-19):**
+- `mvn install -DskipTests` — BUILD SUCCESS (33 source files, 8.5s)
+- `POST /api/impact` `{"repoId":"...","targetClass":"ChunkingService","targetMethod":"chunk"}` — 200 OK ✅
+  - `dependentsFound: 3` — full 3-hop chain returned (depth 1: parseAndEmbed, depth 2: ingest, depth 3: IngestionController#ingest)
+  - LLM explanation: `qwen/qwen3.8-27b` correctly named all 3 dependents by class, method, file, and line range
+  - Explanation correctly described cascading failure paths (contract violations, NPE, HTTP 500, metric corruption)
+  - Zero-dependents fast path: coded — skips LLM call, returns "safe to change in isolation" message ✅
+
+### Classes
 | Class | Package | Responsibility |
 |---|---|---|
+| `ImpactRequest` | api | DTO: `repoId`, `targetClass`, `targetMethod` |
 | `ImpactController` | api | `POST /api/impact` |
-| `ImpactAnalysisService` | graph | BFS/DFS over CallGraphEdge table |
+| `ImpactAnalysisService` | graph | BFS traversal + chunk lookup + Groq LLM prompt |
+| `CodeChunkRepository` | rag | Added `findByRepoIdAndClassNameAndMethodName` + `findByRepoIdAndClassName` |
 
 ---
 

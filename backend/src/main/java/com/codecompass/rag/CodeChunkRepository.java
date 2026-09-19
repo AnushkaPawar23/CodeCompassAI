@@ -47,6 +47,37 @@ public interface CodeChunkRepository extends JpaRepository<CodeChunk, UUID> {
      */
     long countByRepoId(String repoId);
 
+    // ── Impact analysis lookups (used by Stage 6) ─────────────────────────────
+
+    /**
+     * Returns all chunks for a given method within a repository.
+     *
+     * <p>Primarily used to locate the {@code METHOD}-type chunk for a specific
+     * method so {@link com.codecompass.graph.ImpactAnalysisService} can include
+     * its actual source code in the impact-analysis prompt.
+     *
+     * @param repoId     logical repository identifier
+     * @param className  simple class name (e.g. {@code ChunkingService})
+     * @param methodName simple method name (e.g. {@code chunk})
+     * @return matching chunks (typically 0 or 1 for METHOD type)
+     */
+    List<CodeChunk> findByRepoIdAndClassNameAndMethodName(
+            String repoId, String className, String methodName);
+
+    /**
+     * Returns all chunks for a given class within a repository.
+     *
+     * <p>Used as a fallback by {@link com.codecompass.graph.ImpactAnalysisService}
+     * when no {@code METHOD}-type chunk can be found for a specific method
+     * (e.g. for constructors, accessors, or methods not individually chunked).
+     * Returns the {@code CLASS}-type chunk so the prompt still has some code context.
+     *
+     * @param repoId    logical repository identifier
+     * @param className simple class name
+     * @return matching chunks (CLASS and/or METHOD chunks for the class)
+     */
+    List<CodeChunk> findByRepoIdAndClassName(String repoId, String className);
+
     // ── Similarity search (used by Stage 4) ──────────────────────────────────
 
     /**
