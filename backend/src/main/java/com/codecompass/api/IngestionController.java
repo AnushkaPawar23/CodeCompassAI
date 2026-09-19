@@ -94,13 +94,15 @@ public class IngestionController {
                     methodCount,
                     testCount,
                     result.chunksCreated(),
+                    result.graphEdgesCreated(),
                     System.currentTimeMillis() - start,
                     result.failedFiles()
             );
 
-            log.info("Ingestion done — files={}, classes={}, methods={}, chunks={}, failed={}, ms={}",
+            log.info("Ingestion done — files={}, classes={}, methods={}, chunks={}, graphEdges={}, failed={}, ms={}",
                     response.filesParsed(), response.classesFound(), response.methodsFound(),
-                    response.chunksCreated(), response.failedFiles().size(), response.durationMs());
+                    response.chunksCreated(), response.graphEdgesCreated(),
+                    response.failedFiles().size(), response.durationMs());
 
             return ResponseEntity.ok(response);
 

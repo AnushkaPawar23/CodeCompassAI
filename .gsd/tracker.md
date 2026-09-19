@@ -4,8 +4,8 @@
 > It is updated at every stage boundary (start / complete) so state survives
 > quota pauses and session gaps.
 >
-> Last reconciled: 2026-09-18  
-> Last updated: 2026-09-18 (Stage 4 post-audit — model fixed to qwen/qwen3.8-27b, chunk-truncation fix in RagService, smoke test re-confirmed at topK=5)
+> Last reconciled: 2026-09-19  
+> Last updated: 2026-09-19 (Stage 5 complete — call graph construction + dependents traversal; BUILD SUCCESS; 99 edges; GET /api/graph/dependents verified)
 
 ---
 
@@ -63,9 +63,25 @@
     - No 413 errors at topK=5 ✅
   - Status: **COMPLETE**
 
-- [ ] **Stage 5 — Call-Graph API**
-  - `GET /api/graph/{repoId}/callers`, CallGraphBuilder, CallGraphEdge
-  - Status: **PLANNED**
+- [x] **Stage 5 — Call-Graph API** *(COMPLETE — 2026-09-19)*
+  - Files written:
+    - `graph/CallGraphEdge.java` ✅ (JPA entity — caller/callee columns, 3 DB indexes, ddl-auto managed)
+    - `graph/CallGraphEdgeRepository.java` ✅ (findByRepoIdAndCalleeClassAndCalleeMethod, deleteByRepoId, countByRepoId)
+    - `graph/GraphBuilderService.java` ✅ (symbol-solver pipeline: ReflectionTypeSolver + JavaParserTypeSolver, dedup, batch persist)
+    - `graph/GraphTraversalService.java` ✅ (BFS transitive caller traversal, DependentMethod record)
+    - `api/GraphController.java` ✅ (`GET /api/graph/dependents` endpoint)
+    - `api/IngestResponse.java` ✅ (graphEdgesCreated field added)
+    - `api/IngestionController.java` ✅ (wired to return graphEdgesCreated)
+    - `ingestion/RepoIngestionService.java` ✅ (GraphBuilderService injected + called in pipeline)
+  - **No Flyway migration** — call_graph_edge table managed by ddl-auto: update (consistent with Stage 3)
+  - Build verification: ✅ **BUILD SUCCESS** (`mvn install` — 1 test passed, 0 failures, 17.4s — 2026-09-19)
+  - Ingest smoke test (`POST /api/ingest` — backend/src, type=local): ✅ **200 OK** *(2026-09-19)*
+    - `filesParsed: 31`, `classesFound: 25`, `methodsFound: 40`, `chunksCreated: 65`, `graphEdgesCreated: 99`, `failedFiles: []`
+    - Graph: 31 files processed, 99 intra-project edges persisted, 61 external calls skipped
+  - Dependents smoke test (`GET /api/graph/dependents?class=RepoIngestionService&method=ingest`): ✅ **200 OK** *(2026-09-19)*
+    - `totalCount: 1`, `dependents[0]: IngestionController#ingest`, `depth: 1`, `callerStartLine: 53`, `callerEndLine: 118`
+    - Correctly identified IngestionController as the sole direct caller ✅
+  - Status: **COMPLETE**
 
 - [ ] **Stage 6 — Change-Impact Analysis**
   - `POST /api/impact`, ImpactAnalysisService BFS/DFS

@@ -1,5 +1,6 @@
 package com.codecompass.ingestion;
 
+import com.codecompass.graph.GraphBuilderService;
 import com.codecompass.parsing.JavaAstParserService;
 import com.codecompass.parsing.ParsedFile;
 import com.codecompass.rag.ChunkingService;
@@ -23,7 +24,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Stage 2 + 3 — top-level ingestion orchestrator.
+ * Stage 2 + 3 + 5 — top-level ingestion orchestrator.
  *
  * <p>Accepts either a <em>local directory path</em> or a <em>Git URL</em>:
  * <ul>
@@ -39,11 +40,16 @@ import java.util.UUID;
  * <p><b>Stage 3</b> extends the pipeline: after parsing, the service passes the
  * parsed files through {@link ChunkingService} (producing {@link CodeChunk} objects)
  * and then {@link EmbeddingService} (generating embeddings and persisting to
- * PostgreSQL).  The final {@link IngestionResult} includes a {@code chunksCreated}
+ * PostgreSQL). The final {@link IngestionResult} includes a {@code chunksCreated}
  * count.
  *
+ * <p><b>Stage 5</b> adds call-graph construction: after embedding, the service
+ * calls {@link GraphBuilderService#build} to extract intra-project method call
+ * edges and persist them in the {@code call_graph_edge} table. The result includes
+ * a {@code graphEdgesCreated} count.
+ *
  * <p>Files that fail to parse are recorded in {@link IngestionResult#failedFiles()}
- * and do not abort the run.  Chunks that fail to embed are similarly skipped.
+ * and do not abort the run. Chunks that fail to embed are similarly skipped.
  */
 @Service
 @RequiredArgsConstructor
@@ -54,6 +60,7 @@ public class RepoIngestionService {
     private final JavaAstParserService astParser;
     private final ChunkingService chunkingService;
     private final EmbeddingService embeddingService;
+    private final GraphBuilderService graphBuilderService;
 
     @Value("${codecompass.clone-base-dir}")
     private String cloneBaseDir;
@@ -61,12 +68,12 @@ public class RepoIngestionService {
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
-     * Ingest a repository: parse → chunk → embed → persist.
+     * Ingest a repository: parse → chunk → embed → build call graph.
      *
      * @param source a local filesystem path or a Git remote URL
      * @param isGit  {@code true} → clone via JGit; {@code false} → use path directly
      * @return aggregated {@link IngestionResult} with parsed files, failure list,
-     *         and the number of chunks created
+     *         chunk count, and graph edge count
      * @throws IllegalArgumentException if the local path does not exist / is not a directory
      * @throws Exception                wraps JGit or I/O errors
      */
@@ -114,7 +121,7 @@ public class RepoIngestionService {
     }
 
     /**
-     * Stage 2 + 3 pipeline: walk → parse → chunk → embed → persist.
+     * Stage 2 + 3 + 5 pipeline: walk → parse → chunk → embed → build graph.
      *
      * @param repoRoot root directory of the repository on disk
      * @param repoId   logical identifier for this repo (path or Git URL)
@@ -141,7 +148,10 @@ public class RepoIngestionService {
         List<CodeChunk> chunks = chunkingService.chunk(parsed, repoId);
         int chunksCreated = embeddingService.embedAndSave(chunks, repoId);
 
-        return new IngestionResult(parsed, failed, chunksCreated);
+        // ── Stage 5: build call graph ─────────────────────────────────────────
+        int graphEdgesCreated = graphBuilderService.build(parsed, repoId, repoRoot);
+
+        return new IngestionResult(parsed, failed, chunksCreated, graphEdgesCreated);
     }
 
     /** Best-effort recursive delete; warnings are logged but never thrown. */
@@ -170,13 +180,15 @@ public class RepoIngestionService {
     /**
      * Aggregated output of one ingestion run.
      *
-     * @param parsedFiles    successfully parsed .java files (with full metadata)
-     * @param failedFiles    relative paths of files that could not be parsed
-     * @param chunksCreated  number of code chunks successfully embedded and stored
+     * @param parsedFiles      successfully parsed .java files (with full metadata)
+     * @param failedFiles      relative paths of files that could not be parsed
+     * @param chunksCreated    number of code chunks successfully embedded and stored
+     * @param graphEdgesCreated number of intra-project call-graph edges persisted (Stage 5)
      */
     public record IngestionResult(
             List<ParsedFile> parsedFiles,
             List<String> failedFiles,
-            int chunksCreated
+            int chunksCreated,
+            int graphEdgesCreated
     ) {}
 }

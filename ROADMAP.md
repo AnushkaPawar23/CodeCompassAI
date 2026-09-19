@@ -91,16 +91,28 @@ For the current status of each stage see PROJECT.md.
 
 ---
 
-## Stage 5 — Call-Graph API
+## Stage 5 — Call-Graph API (COMPLETE)
 
 **Goal:** Expose caller/callee relationships for any method in the codebase.
+
+**Verification (2026-09-19):**
+- `mvn install` — BUILD SUCCESS (1 test, 0 failures, 17.4s)
+- `POST /api/ingest` (type=local, source=backend/src) — 200 OK
+  - `filesParsed: 31`, `classesFound: 25`, `methodsFound: 40`, `chunksCreated: 65`, `graphEdgesCreated: 99`, `failedFiles: []` ✅
+  - Graph build: 31 files processed, 99 intra-project edges persisted, 61 external/unresolvable calls skipped
+- `GET /api/graph/dependents?repoId=...&class=RepoIngestionService&method=ingest` — 200 OK ✅
+  - `totalCount: 1`, `dependents[0]: IngestionController#ingest`, `callerStartLine: 53`, `callerEndLine: 118`, `depth: 1`
+  - Correctly identified `IngestionController#ingest` as the sole direct caller ✅
+- No Flyway migration needed — `call_graph_edge` table created by `ddl-auto: update` (consistent with Stage 3)
 
 ### Planned classes
 | Class | Package | Responsibility |
 |---|---|---|
-| `GraphController` | api | `GET /api/graph/{repoId}/callers?method=...` |
-| `CallGraphBuilder` | graph | JavaParser symbol resolution -> directed graph |
-| `CallGraphEdge` | graph | JPA entity (caller, callee, repoId) |
+| `GraphController` | api | `GET /api/graph/dependents?repoId=...&class=...&method=...` |
+| `GraphBuilderService` | graph | JavaParser symbol resolution → directed edge extraction, batch persist |
+| `GraphTraversalService` | graph | BFS transitive caller traversal, `DependentMethod` record |
+| `CallGraphEdge` | graph | JPA entity (caller, callee, repoId, file paths, line ranges) |
+| `CallGraphEdgeRepository` | graph | Spring Data JPA — find by callee, delete by repoId |
 
 ---
 

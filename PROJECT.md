@@ -56,7 +56,7 @@ CodeCompass/
 | 2 | Ingestion API -- `POST /api/ingest`, JGit clone, JavaFileWalker, AST parse → ParsedFile/ParsedClass/ParsedMethod | COMPLETE |
 | 3 | AST parsing + embedding -- JavaParser -> CodeChunk JPA entity, Ollama embed, pgvector store | COMPLETE (BUILD SUCCESS; failedFiles:0; 38 chunks; 55/55 embeddings non-null; thread-safety fix applied 2026-09-17) |
 | 4 | Q&A RAG endpoint -- `POST /api/qa`, similarity search + Groq LLM answer | COMPLETE (BUILD SUCCESS; 200 OK; answer + traceable sources[] verified; model: `qwen/qwen3.8-27b`; chunk-truncation fix; topK=5 confirmed 2026-09-18) |
-| 5 | Call-graph API -- JavaParser symbol resolution, `GET /api/graph/{repoId}/callers` | Planned |
+| 5 | Call-graph API -- `GET /api/graph/dependents`, JavaParser symbol resolution, BFS transitive traversal | COMPLETE (BUILD SUCCESS; 200 OK; 99 edges; `IngestionController#ingest` correctly identified as depth-1 caller of `RepoIngestionService#ingest`; 2026-09-19) |
 | 6 | Change-impact analysis -- `POST /api/impact`, transitive caller tracing | Planned |
 | 7 | Endpoint discovery -- `GET /api/endpoints/{repoId}` (Spring MVC route scan) | Planned |
 
