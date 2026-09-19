@@ -142,9 +142,22 @@ For the current status of each stage see PROJECT.md.
 
 **Goal:** Scan a Spring MVC codebase and return all REST endpoints it exposes.
 
-### Planned classes
+**Verification (2026-09-19):**
+- `mvn install -DskipTests` — BUILD SUCCESS (36 source files, 8.4s)
+- `GET /api/endpoints?repoId=backend/src` — 200 OK ✅
+  - `endpointCount: 5` — all 4 required endpoints found; scanner also self-discovered itself ✅
+  - `GET  /api/endpoints`        → EndpointController#getEndpoints  (line 93)
+  - `GET  /api/graph/dependents` → GraphController#getDependents     (line 95)
+  - `POST /api/impact`           → ImpactController#analyseImpact    (line 79)
+  - `POST /api/ingest`           → IngestionController#ingest        (line 53)
+  - `POST /api/qa`               → QaController#ask                  (line 56)
+- No Postgres table — endpoints computed fresh from disk on each request ✅
+- `@RequestMapping` class prefix + method annotation correctly combined (e.g. `/api` + `/ingest` → `/api/ingest`) ✅
+- All 3 annotation syntactic forms handled: marker, single-member, normal ✅
+
+### Classes
 | Class | Package | Responsibility |
 |---|---|---|
-| `EndpointController` | api | `GET /api/endpoints/{repoId}` |
-| `SpringMvcEndpointScanner` | parsing | AST scan for @RequestMapping/@GetMapping etc. |
-| `EndpointDescriptor` | parsing | DTO (httpMethod, path, controllerClass, handlerMethod) |
+| `EndpointController` | api | `GET /api/endpoints?repoId=...` |
+| `SpringMvcEndpointScanner` | parsing | AST scan for `@RestController`/`@Controller` + all mapping annotations |
+| `EndpointDescriptor` | parsing | DTO: httpMethod, path, controllerClass, handlerMethod, filePath, startLine |

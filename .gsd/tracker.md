@@ -5,7 +5,7 @@
 > quota pauses and session gaps.
 >
 > Last reconciled: 2026-09-19  
-> Last updated: 2026-09-19 (Stage 6 complete — change-impact analysis; POST /api/impact; 200 OK; 3-hop chain; LLM explanation verified)
+> Last updated: 2026-09-19 (Stage 7 complete — endpoint discovery; GET /api/endpoints; 200 OK; 5 endpoints found including self)
 
 ---
 
@@ -98,9 +98,22 @@
     - Edge case: zero-dependents fast path coded (skips LLM, returns "safe to change" message) ✅
   - Status: **COMPLETE**
 
-- [ ] **Stage 7 — Endpoint Discovery**
-  - `GET /api/endpoints/{repoId}`, SpringMvcEndpointScanner
-  - Status: **PLANNED**
+- [x] **Stage 7 — Endpoint Discovery** *(COMPLETE — 2026-09-19)*
+  - Files written:
+    - `parsing/EndpointDescriptor.java` ✅ (record DTO: httpMethod, path, controllerClass, handlerMethod, filePath, startLine)
+    - `parsing/SpringMvcEndpointScanner.java` ✅ (AST scan: @RestController/@Controller detection, class prefix + method annotation combination)
+    - `api/EndpointController.java` ✅ (`GET /api/endpoints?repoId=...`)
+  - **No Postgres table** — computed fresh on each request from disk (consistent with Stage 5 re-parse approach)
+  - Build verification: ✅ **BUILD SUCCESS** (`mvn install -DskipTests` — 36 source files, 8.4s — 2026-09-19)
+  - Smoke test (`GET /api/endpoints?repoId=backend/src`): ✅ **200 OK** *(2026-09-19)*
+    - `endpointCount: 5`
+    - `GET  /api/endpoints`       → EndpointController#getEndpoints       (line 93) ✅
+    - `GET  /api/graph/dependents` → GraphController#getDependents          (line 95) ✅
+    - `POST /api/impact`          → ImpactController#analyseImpact         (line 79) ✅
+    - `POST /api/ingest`          → IngestionController#ingest             (line 53) ✅
+    - `POST /api/qa`              → QaController#ask                       (line 56) ✅
+    - All 4 required endpoints found; scanner correctly discovered itself as 5th ✅
+  - Status: **COMPLETE**
 
 ---
 
