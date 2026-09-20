@@ -5,7 +5,7 @@
 > quota pauses and session gaps.
 >
 > Last reconciled: 2026-09-19  
-> Last updated: 2026-09-19 (Stage 7 complete — endpoint discovery; GET /api/endpoints; 200 OK; 5 endpoints found including self)
+> Last updated: 2026-09-20 (Stage 8 complete — risk-scored impact analysis + test coverage detection; POST /api/impact returns riskLevel/hasTestCoverage per dependent; commit: stage-8-enhancements-complete)
 
 ---
 
@@ -123,3 +123,37 @@ At every stage boundary, update this file AND PROJECT.md AND ROADMAP.md:
 - Mark stage `[/]` (in-progress) when work begins
 - Mark stage `[x]` (complete) when build verification passes
 - Commit message format: `tracker: Stage N [in-progress|complete]`
+
+---
+
+## Stage 8 — Risk-Scored Impact Analysis + Test Coverage Detection *(COMPLETE — 2026-09-20)*
+
+### 8a — Risk-Scored Impact Analysis
+- Files modified:
+  - `graph/ImpactAnalysisService.java` ✅ (RiskLevel enum, RichDependent record, risk counts in ImpactResult, risk-aware LLM prompt)
+  - `api/ImpactController.java` ✅ (Javadoc updated for new response fields)
+- New response fields:
+  - `highRiskCount` / `mediumRiskCount` / `lowRiskCount` (top-level summary)
+  - `riskLevel: "HIGH" | "MEDIUM" | "LOW"` per dependent (depth 1/2/3+)
+  - LLM prompt now opens each dependent section with `*** HIGH RISK ***` etc.
+
+### 8b — Test Coverage Detection
+- Files written:
+  - `graph/TestCoverageService.java` ✅ (scans src/test/java, heuristic: className + methodName substring match)
+- New response fields:
+  - `hasTestCoverage: true/false` per dependent
+  - `untestedDependentsCount` (top-level summary)
+
+### Smoke test — `POST /api/impact` (ChunkingService#chunk) ✅ **200 OK** *(2026-09-20)*
+```
+dependentsFound:        3
+highRiskCount:          1   ← RepoIngestionService#parseAndEmbed  (depth 1)
+mediumRiskCount:        1   ← RepoIngestionService#ingest          (depth 2)
+lowRiskCount:           1   ← IngestionController#ingest           (depth 3)
+untestedDependentsCount: 3  ← honest: only smoke-test exists in src/test/java
+```
+- `riskLevel` per dependent: HIGH/MEDIUM/LOW — **correct per depth** ✅
+- `hasTestCoverage: false` for all 3 — **correct** (only `CodeCompassApplicationTests` exists, mentions none of these classes) ✅
+- LLM explanation prefixes each dependent with `HIGH RISK:` / `MEDIUM RISK:` / `LOW RISK:` ✅
+- Commit: **stage-8-enhancements-complete** (87ea6a6) ✅
+
