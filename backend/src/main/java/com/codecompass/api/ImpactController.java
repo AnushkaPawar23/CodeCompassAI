@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Stage 6 — REST controller exposing the change-impact analysis API.
+ * Stage 8a — response now includes risk levels per dependent and risk-count summaries.
+ * Stage 8b — response now includes test-coverage indicators per dependent.
  *
  * <h2>Endpoint</h2>
  * <pre>POST /api/impact</pre>
@@ -28,10 +30,14 @@ import org.springframework.web.bind.annotation.RestController;
  * <h2>Response (200 OK)</h2>
  * <pre>{@code
  * {
- *   "targetClass":     "ChunkingService",
- *   "targetMethod":    "chunk",
- *   "repoId":          "C:/path/to/backend/src",
- *   "dependentsFound": 3,
+ *   "targetClass":            "ChunkingService",
+ *   "targetMethod":           "chunk",
+ *   "repoId":                 "C:/path/to/backend/src",
+ *   "dependentsFound":        3,
+ *   "highRiskCount":          1,
+ *   "mediumRiskCount":        1,
+ *   "lowRiskCount":           1,
+ *   "untestedDependentsCount": 2,
  *   "dependents": [
  *     {
  *       "callerClass":     "RepoIngestionService",
@@ -39,19 +45,34 @@ import org.springframework.web.bind.annotation.RestController;
  *       "callerFile":      "...RepoIngestionService.java",
  *       "callerStartLine": 129,
  *       "callerEndLine":   155,
- *       "depth":           1
+ *       "depth":           1,
+ *       "riskLevel":       "HIGH",
+ *       "hasTestCoverage": false
  *     },
  *     ...
  *   ],
- *   "explanation": "If ChunkingService#chunk is changed, the following methods..."
+ *   "explanation": "HIGH RISK: RepoIngestionService#parseAndEmbed directly depends on..."
  * }
  * }</pre>
  *
+ * <h2>Risk levels (Stage 8a)</h2>
+ * <ul>
+ *   <li>{@code HIGH}   — depth 1: the dependent directly calls the changed method.</li>
+ *   <li>{@code MEDIUM} — depth 2: one hop removed.</li>
+ *   <li>{@code LOW}    — depth 3+: further transitive dependency.</li>
+ * </ul>
+ *
+ * <h2>Test coverage (Stage 8b)</h2>
+ * <p>{@code hasTestCoverage} is {@code true} when at least one file under
+ * {@code src/test/java} contains both the dependent's class name and method
+ * name as substrings.  {@code untestedDependentsCount} is the number of
+ * dependents for which no such evidence was found.
+ *
  * <h2>Zero-dependents case</h2>
  * <p>When no callers are found the endpoint returns 200 OK with
- * {@code dependentsFound: 0}, an empty {@code dependents} list, and an
- * {@code explanation} message indicating the method is safe to change in
- * isolation.  No LLM call is made in this case.
+ * {@code dependentsFound: 0}, all counts zero, an empty {@code dependents}
+ * list, and an {@code explanation} message indicating the method is safe to
+ * change in isolation.  No LLM call is made in this case.
  *
  * <h2>Error responses</h2>
  * <ul>
