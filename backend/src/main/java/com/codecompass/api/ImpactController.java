@@ -102,13 +102,13 @@ public class ImpactController {
 
         // ── Validate ──────────────────────────────────────────────────────────
         if (request.repoId() == null || request.repoId().isBlank()) {
-            return ResponseEntity.badRequest().body("'repoId' must not be blank");
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest("'repoId' must not be blank"));
         }
         if (request.targetClass() == null || request.targetClass().isBlank()) {
-            return ResponseEntity.badRequest().body("'targetClass' must not be blank");
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest("'targetClass' must not be blank"));
         }
         if (request.targetMethod() == null || request.targetMethod().isBlank()) {
-            return ResponseEntity.badRequest().body("'targetMethod' must not be blank");
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest("'targetMethod' must not be blank"));
         }
 
         log.info("POST /api/impact — repoId='{}', target={}.{}",
@@ -130,7 +130,7 @@ public class ImpactController {
             log.error("Impact analysis failed for {}.{}: {}",
                     request.targetClass(), request.targetMethod(), e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body("Impact analysis failed: " + e.getMessage());
+                    .body(ErrorResponse.serverError("Impact analysis failed: " + e.getMessage()));
         }
     }
 }

@@ -58,7 +58,7 @@ public class QaController {
 
         // ── Validate ──────────────────────────────────────────────────────────
         if (request.question() == null || request.question().isBlank()) {
-            return ResponseEntity.badRequest().body("'question' must not be blank");
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest("'question' must not be blank"));
         }
 
         log.info("POST /api/qa — question='{}'", abbreviate(request.question(), 80));
@@ -72,7 +72,7 @@ public class QaController {
         } catch (Exception e) {
             log.error("QA failed for question='{}': {}", request.question(), e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body("QA failed: " + e.getMessage());
+                    .body(ErrorResponse.serverError("QA failed: " + e.getMessage()));
         }
     }
 

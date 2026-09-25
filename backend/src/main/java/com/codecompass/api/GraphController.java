@@ -100,13 +100,13 @@ public class GraphController {
 
         // ── Validate ──────────────────────────────────────────────────────────
         if (className == null || className.isBlank()) {
-            return ResponseEntity.badRequest().body("'class' parameter must not be blank");
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest("'class' parameter must not be blank"));
         }
         if (methodName == null || methodName.isBlank()) {
-            return ResponseEntity.badRequest().body("'method' parameter must not be blank");
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest("'method' parameter must not be blank"));
         }
         if (repoId == null || repoId.isBlank()) {
-            return ResponseEntity.badRequest().body("'repoId' parameter must not be blank");
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest("'repoId' parameter must not be blank"));
         }
 
         log.info("GET /api/graph/dependents — repoId='{}', class={}, method={}",
@@ -133,7 +133,7 @@ public class GraphController {
         } catch (Exception e) {
             log.error("Graph traversal failed for {}.{}: {}", className, methodName, e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body("Graph traversal failed: " + e.getMessage());
+                    .body(ErrorResponse.serverError("Graph traversal failed: " + e.getMessage()));
         }
     }
 }

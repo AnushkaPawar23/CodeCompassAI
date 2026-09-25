@@ -95,16 +95,16 @@ public class EndpointController {
 
         // ── Validate ──────────────────────────────────────────────────────────
         if (repoId == null || repoId.isBlank()) {
-            return ResponseEntity.badRequest().body("'repoId' must not be blank");
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest("'repoId' must not be blank"));
         }
 
         Path repoPath = Paths.get(repoId).toAbsolutePath().normalize();
 
         if (!Files.isDirectory(repoPath)) {
-            return ResponseEntity.badRequest().body(
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest(
                     "Repository path does not exist or is not a directory: '" + repoId + "'. " +
                     "Note: Git repositories are cloned to a temporary directory that is deleted " +
-                    "after ingestion — only local (type=local) repositories can be scanned.");
+                    "after ingestion — only local (type=local) repositories can be scanned."));
         }
 
         log.info("GET /api/endpoints — repoId='{}'", repoId);
@@ -127,11 +127,11 @@ public class EndpointController {
         } catch (IOException e) {
             log.error("Endpoint scan I/O error for repoId='{}': {}", repoId, e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body("Endpoint scan failed (I/O error): " + e.getMessage());
+                    .body(ErrorResponse.serverError("Endpoint scan failed (I/O error): " + e.getMessage()));
         } catch (Exception e) {
             log.error("Endpoint scan failed for repoId='{}': {}", repoId, e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body("Endpoint scan failed: " + e.getMessage());
+                    .body(ErrorResponse.serverError("Endpoint scan failed: " + e.getMessage()));
         }
     }
 }
