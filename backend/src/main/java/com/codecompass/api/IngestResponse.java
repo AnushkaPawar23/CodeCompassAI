@@ -5,6 +5,7 @@ import java.util.List;
 /**
  * Response body returned by {@code POST /api/ingest} on success.
  *
+ * @param repoId            logical identifier for this repo (normalised source path or Git URL)
  * @param filesParsed       number of .java files successfully parsed
  * @param classesFound      total number of type declarations across all parsed files
  * @param methodsFound      total number of method declarations across all types
@@ -16,6 +17,7 @@ import java.util.List;
  * @param failedFiles       relative paths of files that could not be parsed (empty list = clean run)
  */
 public record IngestResponse(
+        String repoId,
         int filesParsed,
         int classesFound,
         int methodsFound,

@@ -105,9 +105,9 @@ export default function IngestPage() {
             </div>
 
             <div className="ingest-stats">
-              <StatBox value={result.filesProcessed} label="Files processed" />
-              <StatBox value={result.chunksStored} label="Chunks stored" />
-              <StatBox value={result.embeddingsCreated} label="Embeddings" />
+              <StatBox value={result.filesParsed} label="Files processed" />
+              <StatBox value={result.chunksCreated} label="Chunks stored" />
+              <StatBox value={result.chunksCreated} label="Embeddings" />
             </div>
 
             <div className="card">

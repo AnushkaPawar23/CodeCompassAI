@@ -4,6 +4,7 @@ import com.codecompass.ingestion.RepoIngestionService;
 import com.codecompass.parsing.ParsedFile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -53,15 +54,15 @@ public class IngestionController {
     @PostMapping("/ingest")
     public ResponseEntity<?> ingest(@RequestBody IngestRequest request) {
 
-        // ── Validate ──────────────────────────────────────────────────────────
+        // ── Validate ──────────────────────────────────────────────────────
         if (request.source() == null || request.source().isBlank()) {
-            return ResponseEntity.badRequest().body("'source' must not be blank");
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest("'source' must not be blank"));
         }
 
         String type = (request.type() != null) ? request.type().trim().toLowerCase() : "local";
         if (!"local".equals(type) && !"git".equals(type)) {
             return ResponseEntity.badRequest()
-                    .body("'type' must be \"local\" or \"git\", got: \"" + request.type() + "\"");
+                    .body(ErrorResponse.badRequest("'type' must be \"local\" or \"git\", got: \"" + request.type() + "\""));
         }
 
         boolean isGit = "git".equals(type);
@@ -89,6 +90,7 @@ public class IngestionController {
                     .count();
 
             IngestResponse response = new IngestResponse(
+                    request.source().trim(),
                     files.size(),
                     classCount,
                     methodCount,
@@ -108,12 +110,12 @@ public class IngestionController {
 
         } catch (IllegalArgumentException e) {
             log.warn("Bad ingestion request: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest(e.getMessage()));
 
         } catch (Exception e) {
             log.error("Ingestion failed for source='{}': {}", request.source(), e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body("Ingestion failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ErrorResponse.serverError("Ingestion failed: " + e.getMessage()));
         }
     }
 }
