@@ -35,7 +35,7 @@ async function apiFetch(path, options = {}) {
 
 // ── 1. POST /api/ingest ───────────────────────────────────
 // body: { source: string, type: "local"|"git" }
-// 200 : { repoId, filesProcessed, chunksStored, embeddingsCreated, durationMs }
+// 200 : { repoId, filesParsed, chunksCreated, durationMs, failedFiles }
 export function ingest(source, type = 'local') {
   return apiFetch('/api/ingest', {
     method: 'POST',

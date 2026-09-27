@@ -674,3 +674,107 @@ pre {
 }
 
 .divider { height: 1px; background: var(--border); margin: 18px 0; }
+
+/* ── Stage 10 additions ───────────────────────────────────────────── */
+
+/* Badge variant for the target/accent node */
+.badge-accent { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--border-focus); }
+
+/* ── Graph Page layout ─────────────────────────────────────────────── */
+.graph-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 16px;
+  min-height: 520px;
+}
+
+.graph-canvas-wrap {
+  height: 520px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+
+/* Override react-flow defaults to match dark theme */
+.react-flow__node-default {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  cursor: pointer;
+}
+.react-flow__controls button {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+.react-flow__controls button:hover {
+  background: var(--bg-hover) !important;
+}
+
+.graph-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.graph-detail-panel {
+  flex-shrink: 0;
+}
+
+/* ── Endpoint Table ─────────────────────────────────────────────────── */
+.endpoint-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.endpoint-table th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  position: sticky;
+  top: 0;
+}
+.endpoint-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.endpoint-row:hover td {
+  background: var(--bg-hover);
+}
+.endpoint-path {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  color: var(--text-code);
+}
+
+/* ── HTTP Method badges ─────────────────────────────────────────────── */
+.http-method {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.method-get    { background: rgba(108, 143, 255, 0.15); color: #6c8fff; border: 1px solid rgba(108,143,255,0.3); }
+.method-post   { background: rgba(76, 175, 125, 0.15);  color: #4caf7d; border: 1px solid rgba(76,175,125,0.3); }
+.method-put    { background: rgba(245, 197, 66, 0.15);  color: #f5c542; border: 1px solid rgba(245,197,66,0.3); }
+.method-delete { background: rgba(255, 92, 92, 0.15);   color: #ff5c5c; border: 1px solid rgba(255,92,92,0.3); }
+.method-patch  { background: rgba(199, 132, 255, 0.15); color: #c784ff; border: 1px solid rgba(199,132,255,0.3); }
+.method-any    { background: var(--bg-elevated);         color: var(--text-secondary); border: 1px solid var(--border); }
+
+/* ── Responsive: stack graph on narrow screens ──────────────────────── */
+@media (max-width: 900px) {
+  .graph-layout { grid-template-columns: 1fr; }
+  .graph-canvas-wrap { height: 380px; }
+}
+

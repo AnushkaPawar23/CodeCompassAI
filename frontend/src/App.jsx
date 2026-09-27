@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import IngestPage from './pages/IngestPage.jsx';
-import QaPage     from './pages/QaPage.jsx';
-import ImpactPage from './pages/ImpactPage.jsx';
+import IngestPage      from './pages/IngestPage.jsx';
+import QaPage          from './pages/QaPage.jsx';
+import ImpactPage      from './pages/ImpactPage.jsx';
+import GraphPage       from './pages/GraphPage.jsx';
+import ApiExplorerPage from './pages/ApiExplorerPage.jsx';
 
 const NAV_ITEMS = [
-  { id: 'ingest', label: 'Ingest',          icon: '🚀', section: 'Core' },
-  { id: 'qa',     label: 'Q&A Chat',         icon: '💬', section: 'Core' },
-  { id: 'impact', label: 'Impact Analysis',  icon: '⚡', section: 'Core' },
-  { id: 'graph',  label: 'Call Graph',       icon: '🕸️', section: 'Coming in Stage 10', disabled: true },
-  { id: 'apidocs',label: 'API Explorer',     icon: '📖', section: 'Coming in Stage 10', disabled: true },
+  { id: 'ingest',  label: 'Ingest',          icon: '🚀', section: 'Core' },
+  { id: 'qa',      label: 'Q&A Chat',         icon: '💬', section: 'Core' },
+  { id: 'impact',  label: 'Impact Analysis',  icon: '⚡', section: 'Core' },
+  { id: 'graph',   label: 'Call Graph',       icon: '🕸️', section: 'Core' },
+  { id: 'apidocs', label: 'API Explorer',     icon: '📖', section: 'Core' },
 ];
 
 const sections = [...new Set(NAV_ITEMS.map(n => n.section))];
@@ -18,10 +20,12 @@ export default function App() {
 
   function renderPage() {
     switch (activePage) {
-      case 'ingest': return <IngestPage />;
-      case 'qa':     return <QaPage />;
-      case 'impact': return <ImpactPage />;
-      default:       return <IngestPage />;
+      case 'ingest':  return <IngestPage />;
+      case 'qa':      return <QaPage />;
+      case 'impact':  return <ImpactPage />;
+      case 'graph':   return <GraphPage />;
+      case 'apidocs': return <ApiExplorerPage />;
+      default:        return <IngestPage />;
     }
   }
 
@@ -33,7 +37,7 @@ export default function App() {
           <div className="sidebar-logo-icon">🧭</div>
           <div className="sidebar-logo-text">
             <strong>CodeCompass</strong>
-            <span>AI · v0.9</span>
+            <span>AI · v1.0</span>
           </div>
         </div>
 
@@ -45,10 +49,8 @@ export default function App() {
                 <button
                   key={item.id}
                   id={`nav-${item.id}`}
-                  className={`nav-item${activePage === item.id ? ' active' : ''}${item.disabled ? ' disabled' : ''}`}
-                  onClick={() => !item.disabled && setActivePage(item.id)}
-                  disabled={item.disabled}
-                  title={item.disabled ? 'Coming in Stage 10' : undefined}
+                  className={`nav-item${activePage === item.id ? ' active' : ''}`}
+                  onClick={() => setActivePage(item.id)}
                   aria-current={activePage === item.id ? 'page' : undefined}
                 >
                   <span className="nav-item-icon">{item.icon}</span>
@@ -72,3 +74,4 @@ export default function App() {
     </div>
   );
 }
+
