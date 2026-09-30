@@ -98,13 +98,19 @@ public class EndpointController {
             return ResponseEntity.badRequest().body(ErrorResponse.badRequest("'repoId' must not be blank"));
         }
 
-        Path repoPath = Paths.get(repoId).toAbsolutePath().normalize();
+        Path repoPath;
+        try {
+            repoPath = Paths.get(repoId).toAbsolutePath().normalize();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest(
+                    "Invalid Repo ID '" + repoId + "' — expected a filesystem path, not a URL. " +
+                    "Use the Repo ID returned by the Ingest tab (it shows the on-disk path)."));
+        }
 
         if (!Files.isDirectory(repoPath)) {
             return ResponseEntity.badRequest().body(ErrorResponse.badRequest(
                     "Repository path does not exist or is not a directory: '" + repoId + "'. " +
-                    "Note: Git repositories are cloned to a temporary directory that is deleted " +
-                    "after ingestion — only local (type=local) repositories can be scanned."));
+                    "Re-ingest the repository first so that source files are available on disk."));
         }
 
         log.info("GET /api/endpoints — repoId='{}'", repoId);

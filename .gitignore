@@ -76,9 +76,17 @@ logs/
 spring.log
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Temporary clone directories created by RepoIngestionService
+# Temporary / scratch files
 # ─────────────────────────────────────────────────────────────────────────────
-codecompass-repos/
+*.tmp
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Persistent Git clone cache (backend/.repo-cache/) — created by
+# RepoIngestionService for Git-type ingests; kept on disk so Impact
+# Analysis and API Explorer can read source files after ingestion.
+# Must NOT be committed into this project's own git history.
+# ─────────────────────────────────────────────────────────────────────────────
+.repo-cache/
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Maven wrapper (keep the wrapper JAR but not the downloaded distribution)

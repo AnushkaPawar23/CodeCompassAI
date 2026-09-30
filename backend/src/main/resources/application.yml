@@ -89,8 +89,11 @@ langchain4j:
 # CodeCompass custom properties
 # ────────────────────────────────────────────────────────────────────────────
 codecompass:
-  # Directory where cloned repos are stored temporarily during ingestion
-  clone-base-dir: ${java.io.tmpdir}/codecompass-repos
+  # Persistent cache directory for Git repository clones.
+  # Clones are kept after ingestion so Impact Analysis and API Explorer
+  # can read source files on demand. Re-ingesting the same URL replaces
+  # the old clone with a fresh one. Added to .gitignore.
+  clone-base-dir: ${user.dir}/.repo-cache
 
   # pgvector embedding store settings
   pgvector:

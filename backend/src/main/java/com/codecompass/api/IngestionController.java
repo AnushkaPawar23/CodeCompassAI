@@ -90,7 +90,7 @@ public class IngestionController {
                     .count();
 
             IngestResponse response = new IngestResponse(
-                    request.source().trim(),
+                    result.repoId(),
                     files.size(),
                     classCount,
                     methodCount,
