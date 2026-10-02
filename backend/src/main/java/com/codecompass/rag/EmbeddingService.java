@@ -21,9 +21,10 @@ import java.util.List;
  * persists them to PostgreSQL.
  *
  * <h2>Embedding model</h2>
- * Uses {@code nomic-embed-text} (768-dim) running locally via Ollama.
- * The {@link EmbeddingModel} bean is auto-configured by the
- * {@code langchain4j-ollama-spring-boot-starter} from {@code application.yml}.
+ * Uses {@code gemini-embedding-001} (768-dim, MRL-configurable) via the Google AI
+ * Gemini API.  The {@link EmbeddingModel} bean is configured in
+ * {@link EmbeddingConfig} with {@code outputDimensionality = 768} to match the
+ * existing {@code vector(768)} pgvector column with no schema migration required.
  *
  * <h2>pgvector persistence strategy</h2>
  * <p>Hibernate cannot reliably bind a {@code float[]} to a pgvector {@code vector}
@@ -82,7 +83,7 @@ public class EmbeddingService {
             return 0;
         }
 
-        log.info("Embedding {} chunk(s) for repoId='{}' using nomic-embed-text …", chunks.size(), repoId);
+        log.info("Embedding {} chunk(s) for repoId='{}' using gemini-embedding-001 …", chunks.size(), repoId);
 
         // ── Delete stale chunks for this repo (idempotent re-ingestion) ───────
         long existing = chunkRepository.countByRepoId(repoId);

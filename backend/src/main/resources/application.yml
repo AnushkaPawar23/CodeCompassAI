@@ -73,17 +73,37 @@ langchain4j:
       log-responses: false
 
   # ──────────────────────────────────────────────────────────────────────────
-  # LangChain4j – Ollama (local embedding model)
+  # LangChain4j – Google Gemini (hosted embedding model)
   #
-  # Install Ollama before Stage 3:  https://ollama.ai
-  # Then pull the model:            ollama pull nomic-embed-text
+  # Model  : gemini-embedding-001 (output_dimensionality=768 via EmbeddingConfig)
+  # Key    : obtain from https://aistudio.google.com/app/apikey  (no card needed)
+  # Set    : GEMINI_API_KEY environment variable before running
+  #
+  # NOTE: langchain4j-google-ai-gemini is NOT a Spring Boot auto-configure
+  # starter, so there is no langchain4j.google-ai-gemini.* auto-config.
+  # The EmbeddingModel bean is wired manually in EmbeddingConfig.java.
   # ──────────────────────────────────────────────────────────────────────────
-  ollama:
-    embedding-model:
-      base-url: http://localhost:11434
-      model-name: nomic-embed-text
-      log-requests: false
-      log-responses: false
+
+# ────────────────────────────────────────────────────────────────────────────
+# Gemini API
+# Injected into EmbeddingConfig via @Value("${gemini.api-key}").
+# ────────────────────────────────────────────────────────────────────────────
+gemini:
+  api-key: ${GEMINI_API_KEY:GEMINI_API_KEY_NOT_SET}
+
+# ────────────────────────────────────────────────────────────────────────────
+# [DISABLED – local dev only] LangChain4j – Ollama
+# To restore Ollama locally: re-add langchain4j-ollama-spring-boot-starter to
+# pom.xml and uncomment the block below. The vector(768) column is compatible
+# since nomic-embed-text also produces 768-dim vectors.
+# ────────────────────────────────────────────────────────────────────────────
+# langchain4j:
+#   ollama:
+#     embedding-model:
+#       base-url: http://localhost:11434
+#       model-name: nomic-embed-text
+#       log-requests: false
+#       log-responses: false
 
 # ────────────────────────────────────────────────────────────────────────────
 # CodeCompass custom properties
@@ -97,7 +117,7 @@ codecompass:
 
   # pgvector embedding store settings
   pgvector:
-    dimension: 768          # nomic-embed-text produces 768-dim vectors
+    dimension: 768          # gemini-embedding-001 outputDimensionality=768 (MRL-configurable; matches vector(768) column)
     index-type: IVFFLAT
     table-name: code_embeddings
 

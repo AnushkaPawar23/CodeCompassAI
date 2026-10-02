@@ -18,8 +18,9 @@ import java.util.List;
  *
  * <h2>Pipeline</h2>
  * <ol>
- *   <li><b>Embed the question</b> — calls Ollama {@code nomic-embed-text} via the
- *       shared {@link EmbeddingModel} bean (same model used during ingestion).</li>
+ *   <li><b>Embed the question</b> — calls {@code gemini-embedding-001} via the
+ *       shared {@link EmbeddingModel} bean (same model used during ingestion,
+ *       configured in {@link EmbeddingConfig}).</li>
  *   <li><b>Retrieve top-K chunks</b> — calls
  *       {@link CodeChunkRepository#findSimilar(float[], int)} which uses pgvector's
  *       cosine-distance operator ({@code &lt;=&gt;}) to find the nearest stored vectors.</li>
@@ -30,7 +31,7 @@ import java.util.List;
  *   <li><b>Build the prompt</b> — assembles a structured prompt that includes each
  *       retrieved chunk with its file path, class/method name, and line range so
  *       the LLM can cite exact code locations in its answer.</li>
- *   <li><b>Call Groq ({@code llama-3.3-70b-versatile})</b> — delegates to
+ *   <li><b>Call Groq ({@code qwen/qwen3.8-27b})</b> — delegates to
  *       {@link GroqChatService#chat(String)}.</li>
  *   <li><b>Return</b> — packages the LLM answer and a {@link SourceReference} list
  *       into a {@link QaResponse} for the controller.</li>

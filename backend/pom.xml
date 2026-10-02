@@ -105,12 +105,14 @@
         </dependency>
 
         <!--
-            LangChain4j – Ollama integration
-            Provides OllamaEmbeddingModel for nomic-embed-text (local, free)
+            LangChain4j – Google Gemini integration
+            Provides GoogleAiEmbeddingModel for gemini-embedding-001 (hosted, free tier).
+            This is NOT a Spring Boot auto-configure starter — the EmbeddingModel bean
+            is wired manually in EmbeddingConfig so we can set output_dimensionality=768.
         -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-ollama-spring-boot-starter</artifactId>
+            <artifactId>langchain4j-google-ai-gemini</artifactId>
         </dependency>
 
         <!--

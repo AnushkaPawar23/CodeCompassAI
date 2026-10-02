@@ -112,7 +112,7 @@ public class CodeChunk {
     // ── Vector embedding ──────────────────────────────────────────────────────
 
     /**
-     * In-memory 768-dim embedding from {@code nomic-embed-text} via Ollama.
+     * In-memory 768-dim embedding from {@code gemini-embedding-001} via the Google AI API.
      *
      * <p>This field is {@link Transient} — Hibernate never reads or writes it.
      * {@link EmbeddingService} stores the vector into the database {@code vector(768)}
