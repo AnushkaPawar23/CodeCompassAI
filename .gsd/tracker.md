@@ -4,8 +4,8 @@
 > It is updated at every stage boundary (start / complete) so state survives
 > quota pauses and session gaps.
 >
-> Last reconciled: 2026-09-19  
-> Last updated: 2026-09-20 (Stage 8 complete — risk-scored impact analysis + test coverage detection; POST /api/impact returns riskLevel/hasTestCoverage per dependent; commit: stage-8-enhancements-complete)
+> Last reconciled: 2026-10-03  
+> Last updated: 2026-10-03 (Gemini embedding swap verified end-to-end; commit: gemini-embeddings-verified)
 
 ---
 
@@ -115,6 +115,40 @@
     - All 4 required endpoints found; scanner correctly discovered itself as 5th ✅
   - Status: **COMPLETE**
 
+- [x] **Stage 8 — Risk-Scored Impact Analysis + Test Coverage Detection**
+  - High/Medium/Low blast radius scoring, AST scan of src/test/java for coverage
+  - Commit: `stage-8-enhancements-complete`
+  - Status: **COMPLETE**
+
+- [x] **Stage 9 — Frontend Core UI**
+  - React 19 + Vite SPA with custom glassmorphic dark theme
+  - Ingestion console with live status polling, Q&A console with traceable source cards, Impact Analysis panel
+  - Commit: `stage-9-frontend-core-complete`
+  - Status: **COMPLETE**
+
+- [x] **Stage 10 — Interactive Call Graph & API Explorer**
+  - Interactive React Flow graph canvas for callers/callees
+  - Live Spring MVC endpoint discovery catalog with HTTP badges
+  - Commit: `stage-10-complete`
+  - Status: **COMPLETE**
+
+- [x] **Stage 11 — Gemini Embedding Migration & Deployment Hardening**
+  - Embeddings swapped from local Ollama to Google Gemini `gemini-embedding-001` (768-dim) for cloud deployment compatibility
+  - Built-in rate limiting: 4.1s per-chunk throttle (`codecompass.embedding.delay-ms=4100`, ~14.6 req/min) to stay under Gemini free-tier 15 RPM cap
+  - Rate-limit retry back-off: 65s pause on HTTP 429 (`codecompass.embedding.rate-limit-retry-delay-ms=65000`) before single retry
+  - Known trade-off: ~4s delay per chunk on free-tier Gemini quota; configurable via `codecompass.embedding.delay-ms` for paid-tier keys (set to 0 for no delay)
+  - Persistent repository cache (`.repo-cache/`) with Windows/OneDrive lock retry loop
+  - Global CORS configuration (`WebConfig.java`) and unified error responses (`ErrorResponse.java`)
+  - End-to-end verified: build, fresh ingest, 768-dim vectors in Postgres, Q&A, and Impact Analysis
+  - Commits: `05e420c`, `bcb9de3`, `bc3139a` (`gemini-embeddings-verified`)
+  - Status: **COMPLETE & VERIFIED**
+
+- [ ] **Stage 12 — Cloud Production Deployment (Target: Oct 10)**
+  - Neon Serverless PostgreSQL with pgvector (768-dim)
+  - Render Web Service for Spring Boot backend
+  - Vercel SPA deployment for React frontend
+  - Status: **IN PROGRESS**
+
 ---
 
 ## Update Protocol
@@ -156,4 +190,49 @@ untestedDependentsCount: 3  ← honest: only smoke-test exists in src/test/java
 - `hasTestCoverage: false` for all 3 — **correct** (only `CodeCompassApplicationTests` exists, mentions none of these classes) ✅
 - LLM explanation prefixes each dependent with `HIGH RISK:` / `MEDIUM RISK:` / `LOW RISK:` ✅
 - Commit: **stage-8-enhancements-complete** (87ea6a6) ✅
+
+---
+
+## Stage 9 — Frontend Core UI *(COMPLETE — 2026-09-27)*
+
+- Single-page application built with React 19 and Vite
+- Dark mode glassmorphic UI with responsive layout
+- Deliverables:
+  - Ingestion console with GitHub repository URL submission and status indicators
+  - Q&A Console: Markdown answer rendering, traceable source cards with lines and jump references
+  - Impact Analysis: Interactive target selection, risk breakdown, and LLM explanation cards
+- Commit: `stage-9-frontend-core-complete` (648f461), `stage-9-ingest-bugfix` (69865b1)
+
+---
+
+## Stage 10 — Interactive Call Graph & API Explorer *(COMPLETE — 2026-09-27)*
+
+- Deliverables:
+  - `GraphPage.jsx`: Interactive visual graph powered by `@xyflow/react` (React Flow), displaying caller-callee hierarchies with expandable node details
+  - `ApiExplorerPage.jsx`: Live catalog of all Spring MVC endpoints scanned by AST from the repository, including HTTP method badges and direct links to impact analysis
+- Commit: `stage-10-complete` (64dea21)
+
+---
+
+## Stage 11 — Gemini Embedding Migration & Cloud Hardening *(COMPLETE & VERIFIED — 2026-10-03)*
+
+- **Gemini Embedding Swap:**
+  - Replaced local Ollama `nomic-embed-text` with Google Gemini `gemini-embedding-001` (768 dimensions) via LangChain4j.
+  - Reason: Ollama cannot run inside a lightweight cloud container on Render free tier. Gemini provides a managed cloud embedding API with exact same 768-dim vector compatibility.
+  - Deliverables: `EmbeddingConfig.java` (Gemini EmbeddingModel bean), updated `EmbeddingService.java`, `RagService.java`, `pom.xml`, and `application.yml`.
+- **Rate-Limit Pacing & Retry Protection:**
+  - Gemini free-tier rate limit is 15 RPM.
+  - Added proactive throttle: 4.1s delay between consecutive chunks (`codecompass.embedding.delay-ms=4100`, ≈ 14.6 req/min).
+  - Added reactive back-off: On HTTP 429 (`RateLimitException`), waits 65s (`codecompass.embedding.rate-limit-retry-delay-ms=65000`) and retries once before failing chunk.
+  - Paid-tier support: Configurable via `codecompass.embedding.delay-ms=0` for unthrottled ingestion.
+- **Repository Cache & Windows Lock Handling:**
+  - Replaced transient `java.io.tmpdir` with persistent `.repo-cache/` directory.
+  - Added recursive retry delete loop with Windows read-only attribute stripping to handle OneDrive and file indexing locks.
+- **Unified Error Handling & CORS:**
+  - Added `ErrorResponse.java` for standardized JSON error payloads.
+  - Added `WebConfig.java` for global CORS configuration supporting localhost and production domains.
+- **Verification:**
+  - Full end-to-end verified: Maven build clean, fresh ingestion executed, 768-dim vector embeddings confirmed in Postgres, semantic Q&A verified, impact analysis verified with new pipeline.
+  - Commits: `05e420c`, `bcb9de3`, `bc3139a` (`gemini-embeddings-verified`)
+
 

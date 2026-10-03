@@ -43,7 +43,7 @@ For the current status of each stage see PROJECT.md.
 
 **Goal:** Parse each .java file into `CodeChunk` entities and store embeddings.
 
-**Verification (2026-09-17, post thread-safety fix):**
+**Verification & Evolution:**
 - `mvn install` — BUILD SUCCESS (1 test passed, 0 failures, 14.6s)
 - `POST /api/ingest` (type=local, source=backend/src) — 200 OK
   - `filesParsed: 21`, `classesFound: 15`, `methodsFound: 23`, `chunksCreated: 38`, `durationMs: 27747`
@@ -52,14 +52,19 @@ For the current status of each stage see PROJECT.md.
 - Thread-safety fix: `StaticJavaParser` singleton + `@PostConstruct` mutation replaced with
   `static final PARSER_CONFIG` (JAVA_21) + `new JavaParser(PARSER_CONFIG)` per call
 - pom.xml fix: `org.postgresql` scope `runtime` → `compile` (needed for `PGobject`)
+- **Gemini Embedding Migration (2026-10-02/03):** Swapped from local Ollama (`nomic-embed-text`) to Google Gemini `gemini-embedding-001` (768-dim) for cloud deployment compatibility.
+  - Rate-limit handling: 4.1s inter-chunk throttle (`codecompass.embedding.delay-ms=4100`, ≈ 14.6 req/min) to stay under Gemini free-tier 15 RPM cap.
+  - Retry back-off: 65s pause on HTTP 429 (`codecompass.embedding.rate-limit-retry-delay-ms=65000`) before single retry.
+  - Paid tier compatibility: delay is fully configurable via `codecompass.embedding.delay-ms` (set to 0 for paid-tier keys).
 
-### Planned classes
+### Classes
 | Class | Package | Responsibility |
 |---|---|---|
 | `JavaAstParser` | parsing | JavaParser -> method/class/field CodeChunks |
 | `CodeChunk` | parsing | JPA entity (repoId, filePath, chunkType, content, startLine, endLine) |
 | `CodeChunkRepository` | parsing | Spring Data JPA repository |
-| `EmbeddingService` | rag | Calls Ollama nomic-embed-text, stores in pgvector |
+| `EmbeddingService` | rag | Calls Gemini `gemini-embedding-001` (768-dim), throttles calls, stores in pgvector |
+| `EmbeddingConfig` | rag | Spring configuration bean for LangChain4j Gemini EmbeddingModel |
 
 ---
 
@@ -161,3 +166,63 @@ For the current status of each stage see PROJECT.md.
 | `EndpointController` | api | `GET /api/endpoints?repoId=...` |
 | `SpringMvcEndpointScanner` | parsing | AST scan for `@RestController`/`@Controller` + all mapping annotations |
 | `EndpointDescriptor` | parsing | DTO: httpMethod, path, controllerClass, handlerMethod, filePath, startLine |
+
+---
+
+## Stage 8 — Risk-Scored Impact Analysis + Test Coverage Detection (COMPLETE)
+
+**Goal:** Augment change-impact analysis with depth-based risk levels (HIGH/MEDIUM/LOW) and automated test coverage discovery in `src/test/java`.
+
+**Verification (2026-09-20):**
+- `mvn install -DskipTests` — BUILD SUCCESS
+- `POST /api/impact` verified with risk counts (`highRiskCount`, `mediumRiskCount`, `lowRiskCount`) and `hasTestCoverage` booleans.
+- Heuristic AST test scan checks if any test method in `src/test/java` references the dependent class and method.
+
+### Classes
+| Class | Package | Responsibility |
+|---|---|---|
+| `ImpactAnalysisService` | graph | Risk classification per hop depth + risk-weighted prompt |
+| `TestCoverageService` | graph | Scans `src/test/java` for method/class invocations and tests |
+
+---
+
+## Stage 9 — Frontend Core (COMPLETE)
+
+**Goal:** Single-page developer UI for repo ingestion, semantic Q&A, and blast-radius impact analysis.
+
+**Verification (2026-09-27):**
+- Built with React 19 + Vite, custom glassmorphic dark theme.
+- Tabs:
+  - **Ingest View**: Form to ingest public GitHub URLs with live progress and status polling.
+  - **Q&A Console**: Natural language search with confidence-ranked source references, line snippets, and jump links.
+  - **Impact Analysis**: Target class & method selector, blast radius cards, risk indicators, and LLM explanation renderer.
+
+---
+
+## Stage 10 — Interactive Call Graph & API Explorer (COMPLETE)
+
+**Goal:** Visual node-edge graph of codebase architecture and live REST API catalog.
+
+**Verification (2026-09-27):**
+- **Graph Visualizer (`GraphPage.jsx`)**: React Flow (`@xyflow/react`) canvas rendering caller/callee relationships with interactive expansion and inspection drawer.
+- **API Explorer (`ApiExplorerPage.jsx`)**: Auto-discovered Spring MVC endpoints with HTTP badges, controller paths, and direct jump to impact analysis.
+
+---
+
+## Deployment — Neon + Render + Vercel (IN PROGRESS)
+
+**Target Completion:** October 10, 2026
+
+**Architecture:**
+- **Database:** Neon Serverless PostgreSQL with `pgvector` extension enabled (`vector(768)`).
+- **Backend:** Render Web Service (Docker / Java 21 OpenJDK runtime), running Spring Boot jar.
+- **Frontend:** Vercel SPA deployment with proxy rewrites or direct CORS connection to Render.
+- **AI Services:** Groq Cloud (`qwen/qwen3.8-27b`) + Google AI Studio (`gemini-embedding-001`, 768-dim).
+
+**Key Milestone Steps:**
+1. **Neon PostgreSQL Setup**: Provision DB, enable `pgvector`, test connection string with SSL (`sslmode=require`).
+2. **Backend Containerization & Config**: Create multi-stage `Dockerfile`, verify production profile (`application-prod.yml`), inject environment variables (`SPRING_DATASOURCE_*`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `CORS_ALLOWED_ORIGINS`).
+3. **Render Deployment**: Deploy backend service, configure persistent disk or volume for `.repo-cache`, verify `/actuator/health` and `/api/endpoints`.
+4. **Frontend Vercel Deployment**: Configure `VITE_API_BASE_URL` or `vercel.json` rewrites, build & deploy Vite SPA, verify end-to-end integration across all 4 views.
+5. **Final Production Verification**: Ingest real sample repository end-to-end on live infrastructure before Oct 10 deadline.
+
