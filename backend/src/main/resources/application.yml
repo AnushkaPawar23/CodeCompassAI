@@ -3,12 +3,12 @@ spring:
     name: codecompass-ai
 
   # ──────────────────────────────────────────────────────────────────────────
-  # PostgreSQL datasource (pgvector/pgvector:pg16 container)
+  # PostgreSQL datasource (local Docker or cloud Neon)
   # ──────────────────────────────────────────────────────────────────────────
   datasource:
-    url: jdbc:postgresql://localhost:5432/codecompass
-    username: codecompass
-    password: codecompass
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/codecompass}
+    username: ${SPRING_DATASOURCE_USERNAME:codecompass}
+    password: ${SPRING_DATASOURCE_PASSWORD:codecompass}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -27,10 +27,10 @@ spring:
     default-property-inclusion: non_null
 
 # ────────────────────────────────────────────────────────────────────────────
-# Server
+# Server – dynamic port binding for Render ($PORT) with fallback to 8080
 # ────────────────────────────────────────────────────────────────────────────
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 # ────────────────────────────────────────────────────────────────────────────
 # Actuator – expose health and info endpoints
@@ -128,3 +128,13 @@ codecompass:
     default-top-k: 5        # default number of chunks retrieved per /api/qa call
     max-chunk-chars: 2000   # per-chunk content cap before prompting (~500 tokens @ 4 chars/token)
                             # prevents 413 "request too large" errors when topK ≥ 3
+
+  # CORS configuration for local dev and cloud deployments (Vercel)
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:4173,https://*.vercel.app}
+
+  # Embedding rate-limit parameters (free-tier Gemini 15 RPM protection)
+  embedding:
+    delay-ms: ${CODECOMPASS_EMBEDDING_DELAY_MS:4100}
+    rate-limit-retry-delay-ms: ${CODECOMPASS_EMBEDDING_RETRY_DELAY_MS:65000}
+

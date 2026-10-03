@@ -1,0 +1,5 @@
+target/
+.repo-cache/
+*.log
+.git/
+.DS_Store
