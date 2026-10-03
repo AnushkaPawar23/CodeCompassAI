@@ -10,6 +10,12 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:codecompass}
     password: ${SPRING_DATASOURCE_PASSWORD:codecompass}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 60000      # allow time for Neon to wake from autosuspend
+      keepalive-time: 120000         # ping idle connections every 2 min
+      max-lifetime: 600000           # recycle connections every 10 min
 
   jpa:
     hibernate:

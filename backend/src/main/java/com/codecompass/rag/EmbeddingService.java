@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -79,6 +79,7 @@ public class EmbeddingService {
     private final EmbeddingModel embeddingModel;
     private final CodeChunkRepository chunkRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final TransactionTemplate transactionTemplate;
 
     /**
      * Milliseconds to sleep between consecutive embedding API calls.
@@ -97,10 +98,12 @@ public class EmbeddingService {
 
     public EmbeddingService(EmbeddingModel embeddingModel,
                             CodeChunkRepository chunkRepository,
-                            JdbcTemplate jdbcTemplate) {
+                            JdbcTemplate jdbcTemplate,
+                            TransactionTemplate transactionTemplate) {
         this.embeddingModel = embeddingModel;
         this.chunkRepository = chunkRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.transactionTemplate = transactionTemplate;
     }
 
     /**
@@ -111,7 +114,10 @@ public class EmbeddingService {
      * @param repoId logical repository identifier — used to clear stale chunks
      * @return the number of chunks successfully embedded and saved
      */
-    @Transactional
+    // NOT @Transactional: the embedding loop is throttled and can run for minutes.
+    // Holding a DB transaction open that long lets Neon / the network drop the idle
+    // connection ("Unable to rollback against JDBC Connection"). DB writes happen in
+    // one short transaction after all embeddings are computed.
     public int embedAndSave(List<CodeChunk> chunks, String repoId) {
         if (chunks.isEmpty()) {
             log.info("No chunks to embed for repoId='{}'", repoId);
@@ -119,13 +125,6 @@ public class EmbeddingService {
         }
 
         log.info("Embedding {} chunk(s) for repoId='{}' using gemini-embedding-001 …", chunks.size(), repoId);
-
-        // ── Delete stale chunks for this repo (idempotent re-ingestion) ───────
-        long existing = chunkRepository.countByRepoId(repoId);
-        if (existing > 0) {
-            log.info("Removing {} stale chunk(s) for repoId='{}'", existing, repoId);
-            chunkRepository.deleteByRepoId(repoId);
-        }
 
         // ── Embed each chunk sequentially ─────────────────────────────────────
         List<CodeChunk> embedded = new ArrayList<>(chunks.size());
@@ -154,6 +153,20 @@ public class EmbeddingService {
         if (embedded.isEmpty()) {
             log.warn("All {} chunk(s) failed to embed for repoId='{}'", chunks.size(), repoId);
             return 0;
+        }
+
+        // ── Short transaction: delete stale chunks, save, write vectors ───────
+        Integer count = transactionTemplate.execute(status -> persist(embedded, chunks.size(), repoId));
+        return count == null ? 0 : count;
+    }
+
+    private int persist(List<CodeChunk> embedded, int totalChunks, String repoId) {
+        // Delete stale chunks for this repo (idempotent re-ingestion)
+        long existing = chunkRepository.countByRepoId(repoId);
+        if (existing > 0) {
+            log.info("Removing {} stale chunk(s) for repoId='{}'", existing, repoId);
+            chunkRepository.deleteByRepoId(repoId);
+            chunkRepository.flush();
         }
 
         // ── Phase 1: JPA save (all non-vector fields; IDs assigned here) ──────
@@ -189,7 +202,7 @@ public class EmbeddingService {
         );
 
         log.info("Saved and embedded {}/{} chunk(s) for repoId='{}'",
-                saved.size(), chunks.size(), repoId);
+                saved.size(), totalChunks, repoId);
         return saved.size();
     }
 
