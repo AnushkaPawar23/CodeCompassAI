@@ -1,7 +1,8 @@
 // Shared API client — all 5 backend endpoints
-// Base URL: http://localhost:8080
+// Base URL: set VITE_API_BASE_URL at build time (e.g. on Vercel);
+// falls back to http://localhost:8080 for local development.
 
-const BASE = 'http://localhost:8080';
+const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
 
 /**
  * Shared fetch wrapper that normalises errors into

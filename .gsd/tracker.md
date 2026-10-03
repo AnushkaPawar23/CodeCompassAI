@@ -144,9 +144,11 @@
   - Status: **COMPLETE & VERIFIED**
 
 - [ ] **Stage 12 — Cloud Production Deployment (Target: Oct 10)**
-  - Neon Serverless PostgreSQL with pgvector (768-dim)
-  - Render Web Service for Spring Boot backend
-  - Vercel SPA deployment for React frontend
+  - [x] Neon Serverless PostgreSQL with pgvector (768-dim) — provisioned 2026-10-03
+  - [x] Backend cloud readiness (`${PORT}`, env-driven datasource, configurable CORS, Dockerfile) — commit `8e730f3`
+  - [x] Render Web Service live: `https://codecompass-backend-6xlp.onrender.com` — `/actuator/health` UP, db UP (Neon)
+  - [ ] Vercel SPA deployment for React frontend (`VITE_API_BASE_URL` set to Render URL)
+  - [ ] End-to-end live verification (ingest, Q&A, impact, graph, API explorer)
   - Status: **IN PROGRESS**
 
 ---
