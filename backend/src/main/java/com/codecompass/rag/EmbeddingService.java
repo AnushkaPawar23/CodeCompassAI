@@ -1,11 +1,13 @@
 package com.codecompass.rag;
 
 import dev.langchain4j.data.embedding.Embedding;
+import dev.langchain4j.exception.RateLimitException;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.postgresql.util.PGobject;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -54,19 +56,52 @@ import java.util.List;
  * that chunk is skipped and logged.  The final count reflects only successfully
  * embedded and saved chunks.
  *
+ * <h2>Rate-limit handling (Gemini free tier)</h2>
+ * The Gemini free tier allows ~15 RPM for {@code gemini-embedding-001}.
+ * To stay within this limit:
+ * <ul>
+ *   <li>{@code codecompass.embedding.delay-ms} (default 4100 ms) is injected
+ *       between every successful embedding call (≈ 14.6 req/min).</li>
+ *   <li>If a {@link RateLimitException} (HTTP 429) is still received, the
+ *       service waits {@code codecompass.embedding.rate-limit-retry-delay-ms}
+ *       (default 65 s) and retries exactly once before skipping that chunk.</li>
+ * </ul>
+ *
  * <h2>Performance note</h2>
- * Embedding is currently <b>synchronous and sequential</b>.  This is acceptable
- * for small demo repos (≤ 20 files).  Async/batched embedding is planned for a
- * later stage.
+ * Embedding is currently <b>synchronous and sequential</b>.  For 102 chunks at
+ * 4.1 s/chunk, ingestion takes ≈ 7 minutes on the free tier.  Async/batched
+ * embedding is planned for a later stage.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class EmbeddingService {
 
     private final EmbeddingModel embeddingModel;
     private final CodeChunkRepository chunkRepository;
     private final JdbcTemplate jdbcTemplate;
+
+    /**
+     * Milliseconds to sleep between consecutive embedding API calls.
+     * Default 4100 ms ≈ 14.6 req/min — safely under the 15 RPM free-tier cap.
+     * Set to 0 to disable throttling (e.g. for paid API keys with higher limits).
+     */
+    @Value("${codecompass.embedding.delay-ms:4100}")
+    private long embedDelayMs;
+
+    /**
+     * Milliseconds to sleep after a 429 RateLimitException before retrying.
+     * Default 65 000 ms (65 s) — slightly longer than the 1-minute RPM window.
+     */
+    @Value("${codecompass.embedding.rate-limit-retry-delay-ms:65000}")
+    private long rateLimitRetryDelayMs;
+
+    public EmbeddingService(EmbeddingModel embeddingModel,
+                            CodeChunkRepository chunkRepository,
+                            JdbcTemplate jdbcTemplate) {
+        this.embeddingModel = embeddingModel;
+        this.chunkRepository = chunkRepository;
+        this.jdbcTemplate = jdbcTemplate;
+    }
 
     /**
      * Embeds each chunk, saves non-vector fields via JPA, then writes the
@@ -98,19 +133,17 @@ public class EmbeddingService {
         for (int i = 0; i < chunks.size(); i++) {
             CodeChunk chunk = chunks.get(i);
             try {
-                Response<Embedding> response = embeddingModel.embed(chunk.getContent());
+                Response<Embedding> response = embedWithThrottle(chunk, i, chunks.size());
                 chunk.setEmbedding(response.content().vector());
                 embedded.add(chunk);
 
-                if (log.isDebugEnabled()) {
-                    log.debug("  [{}/{}] embedded {}/{} ({}…)",
-                            i + 1, chunks.size(),
-                            chunk.getChunkType(), chunk.getClassName(),
-                            abbreviate(chunk.getContent(), 60));
-                }
+                log.info("  [{}/{}] embedded {}/{} ({}…)",
+                        i + 1, chunks.size(),
+                        chunk.getChunkType(), chunk.getClassName(),
+                        abbreviate(chunk.getContent(), 60));
 
             } catch (Exception e) {
-                log.warn("Failed to embed chunk {}/{} (class={}, method={}): {}",
+                log.warn("Failed to embed chunk {}/{} (class={}, method={}) after retries: {}",
                         i + 1, chunks.size(),
                         chunk.getClassName(), chunk.getMethodName(),
                         e.getMessage());
@@ -161,6 +194,39 @@ public class EmbeddingService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Calls {@link EmbeddingModel#embed} with two rate-limit protections:
+     * <ol>
+     *   <li>Sleeps {@link #embedDelayMs} <em>before</em> the call (throttle).</li>
+     *   <li>On {@link RateLimitException} (HTTP 429), sleeps
+     *       {@link #rateLimitRetryDelayMs} then retries exactly once.</li>
+     * </ol>
+     *
+     * @throws Exception if embedding fails after one retry
+     */
+    private Response<Embedding> embedWithThrottle(CodeChunk chunk, int index, int total)
+            throws Exception {
+
+        // Throttle: pace calls at ≈ 14.6 req/min (below the 15 RPM free-tier cap)
+        if (embedDelayMs > 0) {
+            log.debug("Throttle sleep {}ms before embedding chunk [{}/{}]",
+                    embedDelayMs, index + 1, total);
+            Thread.sleep(embedDelayMs);
+        }
+
+        try {
+            return embeddingModel.embed(chunk.getContent());
+
+        } catch (RateLimitException rle) {
+            // 429 despite throttle — wait a full window then retry once
+            log.warn("429 RateLimitException on chunk [{}/{}] — backing off {}ms then retrying once…",
+                    index + 1, total, rateLimitRetryDelayMs);
+            Thread.sleep(rateLimitRetryDelayMs);
+            log.info("Retrying embedding for chunk [{}/{}] after back-off", index + 1, total);
+            return embeddingModel.embed(chunk.getContent());   // let any second failure propagate
+        }
+    }
 
     /**
      * Serialises a {@code float[]} to the pgvector text-literal format:
