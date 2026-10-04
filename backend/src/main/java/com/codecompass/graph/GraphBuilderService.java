@@ -212,12 +212,12 @@ public class GraphBuilderService {
                     } catch (UnsolvedSymbolException e) {
                         // External or unresolvable call — expected, skip silently
                         resolveErrors++;
-                        log.info("Unresolved call '{}' in {}.{}: {}",
+                        log.debug("Unresolved call '{}' in {}.{}: {}",
                                 call.getNameAsString(), callerClassName, callerMethodName, e.getName());
                     } catch (Exception e) {
                         // Catch-all for other resolution failures (UnsupportedOperationException etc.)
                         resolveErrors++;
-                        log.info("Could not resolve call '{}' in {}.{}: {}",
+                        log.debug("Could not resolve call '{}' in {}.{}: {}",
                                 call.getNameAsString(), callerClassName, callerMethodName, e.getMessage());
                     }
                 }
