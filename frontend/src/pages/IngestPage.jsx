@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { ingest } from '../api.js';
 
+// Local-path ingestion only makes sense when the backend runs on the user's own
+// machine. Hidden in production builds (e.g. Vercel -> Render), kept for `npm run dev`.
+const LOCAL_INGEST_ENABLED = !import.meta.env.PROD;
+
 export default function IngestPage() {
   const [source, setSource] = useState('');
-  const [type, setType] = useState('local');
+  const [type, setType] = useState(LOCAL_INGEST_ENABLED ? 'local' : 'git');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
@@ -29,7 +33,9 @@ export default function IngestPage() {
       <div className="page-header">
         <div className="page-title">🚀 Ingest Repository</div>
         <div className="page-subtitle">
-          Point CodeCompass at a local path or Git URL to parse, chunk, and embed your codebase.
+          {LOCAL_INGEST_ENABLED
+            ? 'Point CodeCompass at a local path or Git URL to parse, chunk, and embed your codebase.'
+            : 'Point CodeCompass at a public Git URL to parse, chunk, and embed your codebase.'}
         </div>
       </div>
 
@@ -44,7 +50,7 @@ export default function IngestPage() {
                 value={type}
                 onChange={e => setType(e.target.value)}
               >
-                <option value="local">Local path</option>
+                {LOCAL_INGEST_ENABLED && <option value="local">Local path</option>}
                 <option value="git">Git URL (cloned)</option>
               </select>
             </div>

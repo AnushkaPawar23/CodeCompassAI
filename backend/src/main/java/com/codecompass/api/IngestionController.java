@@ -51,6 +51,10 @@ public class IngestionController {
 
     private final RepoIngestionService ingestionService;
 
+    /** Set CODECOMPASS_LOCAL_INGEST_ENABLED=false on hosted deployments (e.g. Render). */
+    @org.springframework.beans.factory.annotation.Value("${codecompass.local-ingest-enabled:${CODECOMPASS_LOCAL_INGEST_ENABLED:true}}")
+    private boolean localIngestEnabled;
+
     @PostMapping("/ingest")
     public ResponseEntity<?> ingest(@RequestBody IngestRequest request) {
 
@@ -66,6 +70,10 @@ public class IngestionController {
         }
 
         boolean isGit = "git".equals(type);
+        if (!isGit && !localIngestEnabled) {
+            return ResponseEntity.badRequest().body(ErrorResponse.badRequest(
+                    "Local path ingestion is disabled on this server. Use type \"git\" with a public repository URL."));
+        }
         log.info("POST /api/ingest — type={}, source={}", type, request.source());
         long start = System.currentTimeMillis();
 
