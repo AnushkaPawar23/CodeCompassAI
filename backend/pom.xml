@@ -116,6 +116,16 @@
         </dependency>
 
         <!--
+            LangChain4j – Ollama integration (local dev embeddings: nomic-embed-text, 768-dim).
+            Plain library (not the Spring starter) so the bean is only created when
+            codecompass.embedding.provider=ollama, via EmbeddingConfig.
+        -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-ollama</artifactId>
+        </dependency>
+
+        <!--
             LangChain4j – OpenAI-compatible client
             Used for Groq API (Groq exposes an OpenAI-compatible REST endpoint)
             Model: llama-3.3-70b-versatile (free tier)

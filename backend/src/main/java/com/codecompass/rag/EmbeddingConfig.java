@@ -2,8 +2,10 @@ package com.codecompass.rag;
 
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiEmbeddingModel;
+import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -49,8 +51,24 @@ public class EmbeddingConfig {
      */
     public static final int EMBEDDING_DIMENSION = 768;
 
-    @Value("${gemini.api-key}")
-    private String geminiApiKey;
+    /**
+     * Provider toggle: {@code codecompass.embedding.provider} = {@code ollama}
+     * (local default, no rate limit) or {@code gemini} (deployment). Exactly one
+     * {@link EmbeddingModel} bean is created, both produce 768-dim vectors.
+     */
+    @Bean
+    @ConditionalOnProperty(name = "codecompass.embedding.provider", havingValue = "ollama", matchIfMissing = true)
+    public EmbeddingModel ollamaEmbeddingModel(
+            @Value("${codecompass.embedding.ollama.base-url:http://localhost:11434}") String baseUrl,
+            @Value("${codecompass.embedding.ollama.model-name:nomic-embed-text}") String modelName) {
+        log.info("Embedding provider=ollama: model={}, baseUrl={}, dim={}",
+                modelName, baseUrl, EMBEDDING_DIMENSION);
+        return OllamaEmbeddingModel.builder()
+                .baseUrl(baseUrl)
+                .modelName(modelName)
+                .httpClientBuilder(new dev.langchain4j.http.client.spring.restclient.SpringRestClientBuilder())
+                .build();
+    }
 
     /**
      * The {@link EmbeddingModel} bean used by {@link EmbeddingService} during
@@ -63,8 +81,9 @@ public class EmbeddingConfig {
      * @return configured {@link GoogleAiEmbeddingModel}
      */
     @Bean
-    public EmbeddingModel embeddingModel() {
-        log.info("Configuring GoogleAiEmbeddingModel: model=gemini-embedding-001, "
+    @ConditionalOnProperty(name = "codecompass.embedding.provider", havingValue = "gemini")
+    public EmbeddingModel embeddingModel(@Value("${gemini.api-key}") String geminiApiKey) {
+        log.info("Embedding provider=gemini: GoogleAiEmbeddingModel model=gemini-embedding-001, "
                 + "outputDimensionality={}, taskType=RETRIEVAL_DOCUMENT", EMBEDDING_DIMENSION);
 
         return GoogleAiEmbeddingModel.builder()

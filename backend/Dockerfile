@@ -30,6 +30,9 @@ COPY --from=build /app/target/codecompass-0.0.1-SNAPSHOT.jar app.jar
 
 # Dynamic port binding: Render automatically provides $PORT (fallback to 8080)
 ENV PORT=8080
+# Deployed image uses Gemini embeddings (Ollama can't run on Render). A Render
+# environment variable of the same name still overrides this default.
+ENV CODECOMPASS_EMBEDDING_PROVIDER=gemini
 EXPOSE 8080
 
 # Production memory guard:

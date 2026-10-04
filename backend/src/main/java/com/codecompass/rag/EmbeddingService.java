@@ -89,6 +89,10 @@ public class EmbeddingService {
     @Value("${codecompass.embedding.delay-ms:4100}")
     private long embedDelayMs;
 
+    /** Active provider ({@code ollama} or {@code gemini}); throttling applies only to gemini. */
+    @Value("${codecompass.embedding.provider:ollama}")
+    private String provider;
+
     /**
      * Milliseconds to sleep after a 429 RateLimitException before retrying.
      * Default 65 000 ms (65 s) — slightly longer than the 1-minute RPM window.
@@ -124,7 +128,7 @@ public class EmbeddingService {
             return 0;
         }
 
-        log.info("Embedding {} chunk(s) for repoId='{}' using gemini-embedding-001 …", chunks.size(), repoId);
+        log.info("Embedding {} chunk(s) for repoId='{}' using provider={} …", chunks.size(), repoId, provider);
 
         // ── Embed each chunk sequentially ─────────────────────────────────────
         List<CodeChunk> embedded = new ArrayList<>(chunks.size());
@@ -222,7 +226,7 @@ public class EmbeddingService {
             throws Exception {
 
         // Throttle: pace calls at ≈ 14.6 req/min (below the 15 RPM free-tier cap)
-        if (embedDelayMs > 0) {
+        if ("gemini".equalsIgnoreCase(provider) && embedDelayMs > 0) {
             log.debug("Throttle sleep {}ms before embedding chunk [{}/{}]",
                     embedDelayMs, index + 1, total);
             Thread.sleep(embedDelayMs);
