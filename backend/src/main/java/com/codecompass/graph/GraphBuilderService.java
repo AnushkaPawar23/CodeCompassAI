@@ -26,7 +26,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 import java.util.Map;
 import java.util.Optional;
 
@@ -82,6 +85,17 @@ public class GraphBuilderService {
      */
     @Transactional
     public int build(List<ParsedFile> parsedFiles, String repoId, Path repoRoot) {
+        // Fallback for repos whose folder layout doesn't mirror package declarations:
+        // mirror those files into a temp dir laid out by package. Always cleaned up.
+        Path mirrorRoot = createPackageMirror(parsedFiles);
+        try {
+            return doBuild(parsedFiles, repoId, repoRoot, mirrorRoot);
+        } finally {
+            if (mirrorRoot != null) deleteQuietly(mirrorRoot);
+        }
+    }
+
+    private int doBuild(List<ParsedFile> parsedFiles, String repoId, Path repoRoot, Path mirrorRoot) {
         if (parsedFiles.isEmpty()) {
             log.info("No parsed files for repoId='{}' — skipping graph build", repoId);
             return 0;
@@ -110,14 +124,17 @@ public class GraphBuilderService {
         }
 
         // ── 3. Locate Java source root for JavaParserTypeSolver ───────────────
-        Path sourceRoot = resolveSourceRoot(repoRoot);
-        log.info("Graph build — repoId='{}', sourceRoot='{}', files={}", repoId, sourceRoot, parsedFiles.size());
+        List<Path> sourceRoots = new ArrayList<>(findSourceRoots(repoRoot));
+        if (mirrorRoot != null) sourceRoots.add(mirrorRoot);
+        log.info("Graph build — repoId='{}', sourceRoots={}, files={}", repoId, sourceRoots, parsedFiles.size());
 
         // ── 4. Configure symbol solver (one shared instance for the whole build) ─
-        CombinedTypeSolver typeSolver = new CombinedTypeSolver(
-                new ReflectionTypeSolver(false),           // JDK types; false = do NOT restrict to JRE
-                new JavaParserTypeSolver(sourceRoot)       // our project's classes
-        );
+        //    One JavaParserTypeSolver per discovered source root (multi-module support).
+        CombinedTypeSolver typeSolver = new CombinedTypeSolver();
+        typeSolver.add(new ReflectionTypeSolver(false));   // JDK types; false = do NOT restrict to JRE
+        for (Path root : sourceRoots) {
+            typeSolver.add(new JavaParserTypeSolver(root));
+        }
         JavaSymbolSolver symbolSolver = new JavaSymbolSolver(typeSolver);
 
         ParserConfiguration config = new ParserConfiguration()
@@ -128,6 +145,8 @@ public class GraphBuilderService {
         List<CallGraphEdge> edges = new ArrayList<>();
         int filesProcessed = 0;
         int resolveErrors  = 0;
+        int resolvedCalls  = 0;
+        int externalCalls  = 0;   // resolved, but callee is not a project class
 
         for (ParsedFile pf : parsedFiles) {
             Path filePath = Paths.get(pf.filePath());
@@ -159,12 +178,13 @@ public class GraphBuilderService {
                 for (MethodCallExpr call : md.findAll(MethodCallExpr.class)) {
                     try {
                         ResolvedMethodDeclaration resolved = call.resolve();
+                        resolvedCalls++;
                         String calleeClass  = resolved.getClassName();
                         String calleeMethod = resolved.getName();
 
                         // Only store intra-project edges
                         ParsedFile calleeFile = classToFile.get(calleeClass);
-                        if (calleeFile == null) continue;
+                        if (calleeFile == null) { externalCalls++; continue; }
 
                         ParsedMethod calleeMethodMeta = classMethodKey.get(calleeClass + "#" + calleeMethod);
                         int calleeStart = calleeMethodMeta != null ? calleeMethodMeta.startLine() : -1;
@@ -192,12 +212,12 @@ public class GraphBuilderService {
                     } catch (UnsolvedSymbolException e) {
                         // External or unresolvable call — expected, skip silently
                         resolveErrors++;
-                        log.debug("Unresolved call '{}' in {}.{}: {}",
+                        log.info("Unresolved call '{}' in {}.{}: {}",
                                 call.getNameAsString(), callerClassName, callerMethodName, e.getName());
                     } catch (Exception e) {
                         // Catch-all for other resolution failures (UnsupportedOperationException etc.)
                         resolveErrors++;
-                        log.debug("Could not resolve call '{}' in {}.{}: {}",
+                        log.info("Could not resolve call '{}' in {}.{}: {}",
                                 call.getNameAsString(), callerClassName, callerMethodName, e.getMessage());
                     }
                 }
@@ -220,33 +240,96 @@ public class GraphBuilderService {
         // ── 7. Persist ────────────────────────────────────────────────────────
         edgeRepository.saveAll(unique);
 
-        log.info("Graph build complete — repoId='{}': {} edge(s) persisted, {} files processed, {} unresolved calls skipped",
-                repoId, unique.size(), filesProcessed, resolveErrors);
+        log.info("Graph build complete — repoId='{}': {} edge(s) persisted, {} files processed, "
+                        + "calls: {} resolved ({} to project classes, {} external), {} unresolved",
+                repoId, unique.size(), filesProcessed, resolvedCalls,
+                resolvedCalls - externalCalls, externalCalls, resolveErrors);
 
         return unique.size();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    private static final java.util.regex.Pattern PACKAGE_DECL =
+            java.util.regex.Pattern.compile("^\\s*package\\s+([\\w.]+)\\s*;", java.util.regex.Pattern.MULTILINE);
+
     /**
-     * Attempts to locate the Java source root within {@code repoRoot}.
+     * For every parsed file whose parent directory does not end with its declared
+     * package path (e.g. package {@code com.x.y} but folder {@code x/y}), copies it to
+     * {@code <tmp>/com/x/y/File.java}. {@link JavaParserTypeSolver} resolves types by
+     * package-to-directory mapping, so this lets malformed layouts resolve.
      *
-     * <p>Tries, in order:
-     * <ol>
-     *   <li>{@code repoRoot/main/java} — when repoRoot is {@code .../src}</li>
-     *   <li>{@code repoRoot/src/main/java} — when repoRoot is the project root</li>
-     *   <li>{@code repoRoot} itself — fallback</li>
-     * </ol>
+     * @return the temp root, or {@code null} if no file needed mirroring
      */
-    private static Path resolveSourceRoot(Path repoRoot) {
-        Path candidate1 = repoRoot.resolve("main/java");
-        if (Files.isDirectory(candidate1)) return candidate1;
+    private Path createPackageMirror(List<ParsedFile> parsedFiles) {
+        Path tmp = null;
+        try {
+            for (ParsedFile pf : parsedFiles) {
+                Path file = Paths.get(pf.filePath());
+                java.util.regex.Matcher m = PACKAGE_DECL.matcher(Files.readString(file));
+                if (!m.find()) continue;
+                Path pkgPath = Paths.get(m.group(1).replace('.', '/'));
+                Path parent = file.toAbsolutePath().getParent();
+                if (parent != null && parent.endsWith(pkgPath)) continue;   // layout already correct
+                if (tmp == null) {
+                    tmp = Files.createTempDirectory("codecompass-pkgmirror-");
+                    log.info("Package/folder mismatch detected — mirroring into '{}'", tmp);
+                }
+                Path dest = tmp.resolve(pkgPath);
+                Files.createDirectories(dest);
+                Files.copy(file, dest.resolve(file.getFileName()),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            log.warn("Package mirror creation failed: {}", e.getMessage());
+        }
+        return tmp;
+    }
 
-        Path candidate2 = repoRoot.resolve("src/main/java");
-        if (Files.isDirectory(candidate2)) return candidate2;
+    private static void deleteQuietly(Path dir) {
+        try (Stream<Path> walk = Files.walk(dir)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try { Files.deleteIfExists(p); } catch (IOException ignored) {}
+            });
+        } catch (IOException ignored) {}
+    }
 
-        log.warn("Could not find standard Maven source root under '{}'; using root directly", repoRoot);
-        return repoRoot;
+    /**
+     * Discovers every Java source root within {@code repoRoot}.
+     *
+     * <p>Scans the whole tree for directories ending in {@code src/main/java}
+     * (multi-module and nested layouts), skipping {@code .git}, {@code node_modules}
+     * and {@code target}. If {@code repoRoot} itself is {@code .../src} (contains
+     * {@code main/java}) that is added too. Falls back to {@code repoRoot} when
+     * nothing is found.
+     */
+    static List<Path> findSourceRoots(Path repoRoot) {
+        Set<Path> roots = new LinkedHashSet<>();
+
+        Path direct = repoRoot.resolve("main/java");
+        if (Files.isDirectory(direct)) roots.add(direct);
+
+        try (Stream<Path> walk = Files.walk(repoRoot)) {
+            walk.filter(Files::isDirectory)
+                .filter(p -> {
+                    Path rel = repoRoot.relativize(p);
+                    for (Path part : rel) {
+                        String n = part.toString();
+                        if (n.equals(".git") || n.equals("node_modules") || n.equals("target")) return false;
+                    }
+                    return true;
+                })
+                .filter(p -> p.endsWith(Paths.get("src", "main", "java")))
+                .forEach(roots::add);
+        } catch (IOException e) {
+            log.warn("Source root scan failed under '{}': {}", repoRoot, e.getMessage());
+        }
+
+        if (roots.isEmpty()) {
+            log.warn("No src/main/java found under '{}'; using root directly", repoRoot);
+            roots.add(repoRoot);
+        }
+        return new ArrayList<>(roots);
     }
 
     /**
